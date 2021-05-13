@@ -3,35 +3,34 @@ package main
 import (
 	"context"
 	"fmt"
-	awair2 "github.com/herval/iotcollector/pkg/awair"
-	prom2 "github.com/herval/iotcollector/pkg/prom"
+	"github.com/herval/iotcollector/pkg/awair"
+	"github.com/herval/iotcollector/pkg/prom"
 	_ "github.com/joho/godotenv/autoload"
 	"os"
 )
 
 func main() {
 
-	updates := make(chan *awair2.RawDataPoints)
+	updates := make(chan *awair.RawDataPoints)
 
-	awairMonitor := awair2.NeWPollingMonitor(
+	awairMonitor := awair.NeWPollingMonitor(
 		context.Background(),
 		os.Getenv("AWAIR_TOKEN"),
 	)
 
-	go func(upd awair2.Updates) {
+	go func(upd awair.Updates) {
 		if err := awairMonitor.Start(upd); err != nil {
 			panic(err)
 		}
 	}(updates)
 
-	go func(upd awair2.Updates) {
+	go func(upd awair.Updates) {
 		pushers := PusherBuffer{
-			pushers: map[int]prom2.Pusher{},
+			pushers:    map[int]prom.Pusher{},
+			gatewayUrl: os.Getenv("PROMETHEUS_URL"),
 		}
 
-		select {
-		case d := <-upd:
-
+		for d := range upd {
 			pusher := pushers.For(d.DeviceId)
 			pusher.Update("score", d.Score)
 
@@ -41,6 +40,7 @@ func main() {
 				fmt.Println(err.Error())
 				// TODO
 			}
+			fmt.Println("Pushed")
 		}
 
 	}(updates)
@@ -49,10 +49,11 @@ func main() {
 }
 
 type PusherBuffer struct {
-	pushers map[int]prom2.Pusher
+	pushers    map[int]prom.Pusher
+	gatewayUrl string
 }
 
-func (b *PusherBuffer) For(deviceId int) *prom2.Pusher {
+func (b *PusherBuffer) For(deviceId int) *prom.Pusher {
 	if buff, found := b.pushers[deviceId]; found {
 		return &buff
 	}
@@ -61,7 +62,9 @@ func (b *PusherBuffer) For(deviceId int) *prom2.Pusher {
 		"score", "voc", "co2", "pm25", "humid", "temp",
 	}
 
-	p := prom2.NewPusher(
+	p := prom.NewPusher(
+		b.gatewayUrl,
+		"awair",
 		map[string]string{
 			"sensor_id": fmt.Sprintf("%d", deviceId),
 		},

@@ -1,2 +1,5 @@
 .DS_Store
 .env
+iot_collector.iml
+iot_collector.ipr
+iot_collector.iws

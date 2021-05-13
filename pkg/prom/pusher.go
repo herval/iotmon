@@ -11,7 +11,7 @@ type Pusher struct {
 	gauges map[string]prometheus.Gauge
 }
 
-func NewPusher(labels map[string]string, gaugeNames []string, gaugePrefix string) *Pusher {
+func NewPusher(url string, jobName string, labels map[string]string, gaugeNames []string, gaugePrefix string) *Pusher {
 	gauges := map[string]prometheus.Gauge{}
 
 	for _, g := range gaugeNames {
@@ -22,7 +22,7 @@ func NewPusher(labels map[string]string, gaugeNames []string, gaugePrefix string
 	}
 
 	// TODO
-	p := push.New("http://localhost:9091/", "db_backup")
+	p := push.New(url, jobName)
 
 	for _, g := range gauges {
 		p = p.Collector(g)
