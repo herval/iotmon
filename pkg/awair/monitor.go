@@ -23,7 +23,7 @@ func NeWPollingMonitor(ctx context.Context, token string) *Monitor {
 }
 
 // fail startup if unable to fetch devices
-func (m *Monitor) Start(updatesChann Updates) error {
+func (m *Monitor) Start(updatesChann Updates, updateFrequency time.Duration) error {
 	dev, err := m.fetchDevices()
 	if err != nil {
 		return err
@@ -34,7 +34,7 @@ func (m *Monitor) Start(updatesChann Updates) error {
 			for _, d := range dev {
 				data, err := m.fetchRawData(d)
 				if err != nil {
-					// TODO !??
+					fmt.Println(err.Error())
 				}
 
 				// TODO buffer already posted?
@@ -43,11 +43,11 @@ func (m *Monitor) Start(updatesChann Updates) error {
 				}
 			}
 
-			time.Sleep(time.Second * 10)
+			time.Sleep(updateFrequency)
 
 			dev, err = m.fetchDevices()
 			if err != nil {
-				// TODO??!?
+				fmt.Println(err.Error())
 			}
 		}
 	}(dev)
@@ -67,6 +67,7 @@ func (m *Monitor) fetchDevices() ([]Device, error) {
 }
 
 func (m *Monitor) fetchRawData(device Device) ([]*RawDataPoints, error) {
+	fmt.Println("Fetching latest data")
 	data, err := m.client.Latest(m.ctx, &device)
 	if err != nil {
 		return nil, err

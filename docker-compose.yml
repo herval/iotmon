@@ -37,8 +37,7 @@ services:
 #          - node.hostname == ${HOSTNAME}
 
   pushgateway:
-    image: prom/pushgateway
-    container_name: pushgateway
+    image: prom/pushgateway:v1.4.0
     restart: always
     expose:
       - 9091

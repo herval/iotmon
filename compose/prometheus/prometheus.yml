@@ -23,20 +23,26 @@ alerting:
 scrape_configs:
   # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
 
-  - job_name: 'prometheus'
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['pushgateway:9091']
+    dns_sd_configs:
+    - names:
+      - 'tasks.pushgateway'
+      type: 'A'
+      port: 9091
 
+  - job_name: 'prometheus'
     # Override the global default and scrape targets from this job every 5 seconds.
     scrape_interval: 5s
-
     static_configs:
-         - targets: ['localhost:9090']
+      - targets: ['localhost:9090']
 
 
   - job_name: 'cadvisor'
-
     # Override the global default and scrape targets from this job every 5 seconds.
     scrape_interval: 5s
-
     dns_sd_configs:
     - names:
       - 'tasks.cadvisor'
@@ -47,10 +53,8 @@ scrape_configs:
 #          - targets: ['cadvisor:8080']
 
   - job_name: 'node-exporter'
-
     # Override the global default and scrape targets from this job every 5 seconds.
     scrape_interval: 5s
-
     dns_sd_configs:
     - names:
       - 'tasks.node-exporter'

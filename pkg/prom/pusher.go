@@ -42,8 +42,12 @@ func NewPusher(url string, jobName string, labels map[string]string, gaugeNames 
 	//}
 }
 
-func (p *Pusher) Update(gauge string, value float64) {
-	p.gauges[gauge].Set(value)
+func (p *Pusher) Update(gauge string, value float64) bool {
+	if gauge, found := p.gauges[gauge]; found {
+		gauge.Set(value)
+		return true
+	}
+	return false
 }
 
 func (p *Pusher) Push() error {

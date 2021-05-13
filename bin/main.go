@@ -7,6 +7,8 @@ import (
 	"github.com/herval/iotcollector/pkg/prom"
 	_ "github.com/joho/godotenv/autoload"
 	"os"
+	"strings"
+	"time"
 )
 
 func main() {
@@ -19,7 +21,7 @@ func main() {
 	)
 
 	go func(upd awair.Updates) {
-		if err := awairMonitor.Start(upd); err != nil {
+		if err := awairMonitor.Start(upd, time.Minute*10); err != nil {
 			panic(err)
 		}
 	}(updates)
@@ -31,8 +33,15 @@ func main() {
 		}
 
 		for d := range upd {
+			fmt.Println("Processing metrics...")
 			pusher := pushers.For(d.DeviceId)
 			pusher.Update("score", d.Score)
+			for _, s := range d.Sensors {
+				kind := strings.ToLower(s.Comp)
+				if !pusher.Update(kind, s.Value) {
+					fmt.Println("Skipping '" + kind + "' measurement")
+				}
+			}
 
 			fmt.Println(fmt.Sprintf("%+v", d))
 			err := pusher.Push()
