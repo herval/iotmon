@@ -48,8 +48,9 @@ func main() {
 			if err != nil {
 				fmt.Println(err.Error())
 				// TODO
+			} else {
+				fmt.Println("Pushed")
 			}
-			fmt.Println("Pushed")
 		}
 
 	}(updates)
