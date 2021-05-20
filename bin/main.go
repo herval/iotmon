@@ -16,20 +16,43 @@ func main() {
 
 	updates := make(chan *awair.RawDataPoints)
 
-	awairMonitor := awair.NeWPollingMonitor(
-		context.Background(),
-		os.Getenv("AWAIR_TOKEN"),
-	)
+	if host := os.Getenv("AWAIR_LOCAL_HOST"); host != "" {
+		cli := awair.NewLocalClient(host)
+		go awairPollLocal(
+			awair.NeWPollingMonitor(
+				context.Background(),
+				cli,
+			),
+			updates,
+		)
+	}
 
-	port := os.Getenv("PORT")
+	if token := os.Getenv("AWAIR_TOKEN"); token != "" {
+		go awairPoll(
+			awair.NeWPollingMonitor(
+				context.Background(),
+				awair.NewClient(token),
+			),
+			updates,
+		)
+	}
 
-	go startWebserver(port)
+	if port := os.Getenv("PORT"); port != "" {
+		go startWebserver(port)
+	}
 
-	go awairPoll(awairMonitor, updates)
-
-	go promPush(updates)
+	if promUrl := os.Getenv("PROMETHEUS_URL"); promUrl != "" {
+		go promPush(updates, promUrl)
+	}
 
 	select {}
+}
+
+func awairPollLocal(awairMonitor *awair.Monitor, upd awair.Updates) {
+	if err := awairMonitor.Start(upd, time.Second*30); err != nil {
+		panic(err)
+	}
+
 }
 
 func startWebserver(port string) {
@@ -51,10 +74,10 @@ func awairPoll(awairMonitor *awair.Monitor, upd awair.Updates) {
 	}
 }
 
-func promPush(upd awair.Updates) {
+func promPush(upd awair.Updates, gatewayUrl string) {
 	pushers := PusherBuffer{
 		pushers:    map[int]prom.Pusher{},
-		gatewayUrl: os.Getenv("PROMETHEUS_URL"),
+		gatewayUrl: gatewayUrl,
 	}
 
 	for d := range upd {

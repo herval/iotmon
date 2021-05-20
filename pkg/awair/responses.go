@@ -42,3 +42,21 @@ type RawDataPoints struct {
 type ErrorResponse struct {
 	Message string `json:"message"`
 }
+
+type LocalDeviceConfig struct {
+	DeviceId   int
+	DeviceUuid string `json:"device_uuid"`
+	WifiMac    string `json:"wifi_mac"`
+	Ssid       string `json:"ssid"`
+	Ip         string `json:"ip"`
+	Netmask    string `json:"netmask"`
+	Gateway    string `json:"gateway"`
+	FwVersion  string `json:"fw_version"`
+	Timezone   string `json:"timezone"`
+	Display    string `json:"display"`
+	Led        struct {
+		Mode       string `json:"mode"`
+		Brightness int    `json:"brightness"`
+	} `json:"led"`
+	VocFeatureSet int `json:"voc_feature_set"`
+}

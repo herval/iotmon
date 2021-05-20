@@ -7,18 +7,16 @@ import (
 )
 
 type Monitor struct {
-	client *Client
+	client Client
 	ctx    context.Context
 }
 
 type Updates chan *RawDataPoints
 
-func NeWPollingMonitor(ctx context.Context, token string) *Monitor {
-	cli := NewClient(token)
-
+func NeWPollingMonitor(ctx context.Context, client Client) *Monitor {
 	return &Monitor{
 		ctx:    ctx,
-		client: cli,
+		client: client,
 	}
 }
 
