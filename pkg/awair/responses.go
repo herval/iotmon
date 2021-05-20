@@ -60,3 +60,22 @@ type LocalDeviceConfig struct {
 	} `json:"led"`
 	VocFeatureSet int `json:"voc_feature_set"`
 }
+
+type LocalAirDataResponse struct {
+	DeviceId       int
+	Timestamp      time.Time `json:"timestamp"`
+	Score          float64   `json:"score"`
+	DewPoint       float64   `json:"dew_point"`
+	Temp           float64   `json:"temp"`
+	Humid          float64   `json:"humid"`
+	AbsHumid       float64   `json:"abs_humid"`
+	Co2            float64   `json:"co2"`
+	Co2Est         float64   `json:"co2_est"`
+	Co2EstBaseline float64   `json:"co2_est_baseline"`
+	Voc            float64   `json:"voc"`
+	VocBaseline    float64   `json:"voc_baseline"`
+	VocH2Raw       float64   `json:"voc_h2_raw"`
+	VocEthanolRaw  float64   `json:"voc_ethanol_raw"`
+	Pm25           float64   `json:"pm25"`
+	Pm10Est        float64   `json:"pm10_est"`
+}

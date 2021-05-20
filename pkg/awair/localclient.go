@@ -24,15 +24,15 @@ func NewLocalClient(host string) *LocalClient {
 }
 
 func (c *LocalClient) Devices(ctx context.Context) (*DevicesResponse, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/settings/config/data", c.host), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req = req.WithContext(ctx)
-
 	res := LocalDeviceConfig{}
-	if err := sendRequest(c.client, "", req, &res); err != nil {
+	var err error
+
+	if err = get(
+		ctx,
+		c.client,
+		fmt.Sprintf("%s/settings/config/data", c.host),
+		&res,
+	); err != nil {
 		return nil, err
 	}
 
@@ -58,25 +58,50 @@ func toDevice(res LocalDeviceConfig) Device {
 }
 
 func (c *LocalClient) Latest(ctx context.Context, device *Device) (*RawDataPoints, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/air-data/latest", c.host), nil)
-	if err != nil {
+	res := LocalAirDataResponse{}
+	var err error
+	if err = get(
+		ctx,
+		c.client,
+		fmt.Sprintf("%s/air-data/latest", c.host),
+		&res,
+	); err != nil {
 		return nil, err
 	}
 
-	req = req.WithContext(ctx)
+	res.DeviceId = device.DeviceId
 
-	res := RawDataResponse{}
-	if err := sendRequest(c.client, "", req, &res); err != nil {
-		return nil, err
+	return toDataPoints(res), nil
+}
+
+func toDataPoints(res LocalAirDataResponse) *RawDataPoints {
+	return &RawDataPoints{
+		Score:    res.Score,
+		DeviceId: res.DeviceId,
+		Sensors: []struct {
+			Comp  string  `json:"comp"`
+			Value float64 `json:"value"`
+		}{
+			{
+				Comp:  "temp",
+				Value: res.Temp,
+			},
+			{
+				Comp:  "co2",
+				Value: res.Co2,
+			},
+			{
+				Comp:  "voc",
+				Value: res.Voc,
+			},
+			{
+				Comp:  "pm25",
+				Value: res.Pm25,
+			},
+			{
+				Comp:  "humid",
+				Value: res.Humid,
+			},
+		},
 	}
-
-	for _, d := range res.Data {
-		d.DeviceId = device.DeviceId
-	}
-
-	if len(res.Data) > 0 {
-		return res.Data[0], nil
-	}
-
-	return nil, nil
 }

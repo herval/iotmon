@@ -14,6 +14,22 @@ type Client interface {
 	Latest(ctx context.Context, device *Device) (*RawDataPoints, error)
 }
 
+func get(ctx context.Context, client *http.Client, url string, out interface{}) error {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	req = req.WithContext(ctx)
+
+	res := out
+	if err := sendRequest(client, "", req, &res); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func sendRequest(client *http.Client, bearerToken string, req *http.Request, v interface{}) error {
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
