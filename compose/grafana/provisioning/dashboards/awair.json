@@ -404,15 +404,7 @@
           "fill": true,
           "line": false,
           "op": "gt",
-          "value": 80,
-          "yaxis": "left"
-        },
-        {
-          "colorMode": "critical",
-          "fill": true,
-          "line": false,
-          "op": "lt",
-          "value": 15,
+          "value": 65,
           "yaxis": "left"
         },
         {
@@ -421,14 +413,6 @@
           "line": false,
           "op": "gt",
           "value": 50,
-          "yaxis": "left"
-        },
-        {
-          "colorMode": "warning",
-          "fill": true,
-          "line": false,
-          "op": "lt",
-          "value": 35,
           "yaxis": "left"
         },
         {
@@ -440,11 +424,19 @@
           "yaxis": "left"
         },
         {
-          "colorMode": "ok",
+          "colorMode": "warning",
           "fill": true,
           "line": false,
           "op": "lt",
-          "value": 50,
+          "value": 40,
+          "yaxis": "left"
+        },
+        {
+          "colorMode": "critical",
+          "fill": true,
+          "line": false,
+          "op": "lt",
+          "value": 25,
           "yaxis": "left"
         }
       ],
@@ -778,7 +770,7 @@
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {

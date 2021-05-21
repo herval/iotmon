@@ -3,6 +3,7 @@ package awair
 import (
 	"context"
 	"fmt"
+	http2 "github.com/herval/iotcollector/pkg/http"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,13 +26,16 @@ func NewLocalClient(host string) *LocalClient {
 
 func (c *LocalClient) Devices(ctx context.Context) (*DevicesResponse, error) {
 	res := LocalDeviceConfig{}
+	errorRes := ErrorResponse{}
 	var err error
 
-	if err = get(
+	if err = http2.Get(
 		ctx,
 		c.client,
 		fmt.Sprintf("%s/settings/config/data", c.host),
+		"",
 		&res,
+		&errorRes,
 	); err != nil {
 		return nil, err
 	}
@@ -59,12 +63,16 @@ func toDevice(res LocalDeviceConfig) Device {
 
 func (c *LocalClient) Latest(ctx context.Context, device *Device) (*RawDataPoints, error) {
 	res := LocalAirDataResponse{}
+	errorRes := ErrorResponse{}
 	var err error
-	if err = get(
+
+	if err = http2.Get(
 		ctx,
 		c.client,
 		fmt.Sprintf("%s/air-data/latest", c.host),
+		"",
 		&res,
+		&errorRes,
 	); err != nil {
 		return nil, err
 	}

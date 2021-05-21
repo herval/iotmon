@@ -3,6 +3,7 @@ package awair
 import (
 	"context"
 	"fmt"
+	http2 "github.com/herval/iotcollector/pkg/http"
 	"net/http"
 	"time"
 )
@@ -10,7 +11,6 @@ import (
 const (
 	BaseURLV1 = "https://developer-apis.awair.is/v1"
 )
-
 
 type CloudClient struct {
 	client *http.Client
@@ -27,15 +27,17 @@ func NewClient(authToken string) *CloudClient {
 }
 
 func (c *CloudClient) Devices(ctx context.Context) (*DevicesResponse, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/users/self/devices", BaseURLV1), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req = req.WithContext(ctx)
-
 	res := DevicesResponse{}
-	if err := sendRequest(c.client, c.token, req, &res); err != nil {
+	errorRes := ErrorResponse{}
+
+	if err := http2.Get(
+		ctx,
+		c.client,
+		fmt.Sprintf("%s/users/self/devices", BaseURLV1),
+		c.token,
+		&res,
+		&errorRes,
+	); err != nil {
 		return nil, err
 	}
 
@@ -43,15 +45,17 @@ func (c *CloudClient) Devices(ctx context.Context) (*DevicesResponse, error) {
 }
 
 func (c *CloudClient) Latest(ctx context.Context, device *Device) (*RawDataPoints, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/users/self/devices/%s/%d/air-data/latest", BaseURLV1, device.DeviceType, device.DeviceId), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req = req.WithContext(ctx)
-
 	res := RawDataResponse{}
-	if err := sendRequest(c.client, c.token, req, &res); err != nil {
+	errorRes := ErrorResponse{}
+
+	if err := http2.Get(
+		ctx,
+		c.client,
+		fmt.Sprintf("%s/users/self/devices/%s/%d/air-data/latest", BaseURLV1, device.DeviceType, device.DeviceId),
+		c.token,
+		&res,
+		&errorRes,
+	); err != nil {
 		return nil, err
 	}
 
@@ -67,15 +71,17 @@ func (c *CloudClient) Latest(ctx context.Context, device *Device) (*RawDataPoint
 }
 
 func (c *CloudClient) RawData(ctx context.Context, device *Device) (*RawDataResponse, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/users/self/devices/%s/%d/air-data/raw", BaseURLV1, device.DeviceType, device.DeviceId), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req = req.WithContext(ctx)
-
 	res := RawDataResponse{}
-	if err := sendRequest(c.client, c.token, req, &res); err != nil {
+	errorRes := ErrorResponse{}
+
+	if err := http2.Get(
+		ctx,
+		c.client,
+		fmt.Sprintf("%s/users/self/devices/%s/%d/air-data/raw", BaseURLV1, device.DeviceType, device.DeviceId),
+		c.token,
+		&res,
+		&errorRes,
+	); err != nil {
 		return nil, err
 	}
 

@@ -11,3 +11,4 @@ To Do:
 * LAN network traffic
 * Synology NAS
 * prom daemons running on laptops and whatnot
+* Crypto heat map

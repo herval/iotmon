@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	aqi2 "github.com/herval/iotcollector/pkg/aqi"
 	"github.com/herval/iotcollector/pkg/awair"
 	"github.com/herval/iotcollector/pkg/prom"
 	_ "github.com/joho/godotenv/autoload"
@@ -14,7 +15,17 @@ import (
 
 func main() {
 
-	updates := make(chan *awair.RawDataPoints)
+	awairUpdates := make(chan *awair.RawDataPoints)
+	aqiUpdates := make(chan *aqi2.AqiDataResult)
+
+	if aqi := os.Getenv("AQICN_API_KEY"); aqi != "" {
+		aqiClient := aqi2.NewClient(aqi)
+		go aqiPoll(
+			aqiClient,
+			os.Getenv("AQICN_LOCATIONS"),
+			aqiUpdates,
+		)
+	}
 
 	if host := os.Getenv("AWAIR_LOCAL_HOST"); host != "" {
 		cli := awair.NewLocalClient(host)
@@ -23,7 +34,7 @@ func main() {
 				context.Background(),
 				cli,
 			),
-			updates,
+			awairUpdates,
 		)
 	}
 
@@ -33,7 +44,7 @@ func main() {
 				context.Background(),
 				awair.NewClient(token),
 			),
-			updates,
+			awairUpdates,
 		)
 	}
 
@@ -42,17 +53,40 @@ func main() {
 	}
 
 	if promUrl := os.Getenv("PROMETHEUS_URL"); promUrl != "" {
-		go promPush(updates, promUrl)
+		go promPush(awairUpdates, aqiUpdates, promUrl)
 	}
 
 	select {}
 }
 
-func awairPollLocal(awairMonitor *awair.Monitor, upd awair.Updates) {
-	if err := awairMonitor.Start(upd, time.Second*30); err != nil {
-		panic(err)
+func aqiPoll(client *aqi2.AqiCnClient, locations string, upd chan *aqi2.AqiDataResult) {
+	latLngRaw := strings.Split(locations, ";")
+
+	latLng := [][]string{}
+	for _, ll := range latLngRaw {
+		latLng = append(latLng, strings.Split(ll, ","))
 	}
 
+	for _, ll := range latLng {
+		go func(coords []string) {
+			for {
+				data, err := client.GetAtLatLng(context.Background(), coords[0], coords[1])
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				fmt.Println(data)
+				upd <- data
+
+				time.Sleep(time.Hour)
+			}
+		}(ll)
+	}
+}
+
+func awairPollLocal(awairMonitor *awair.Monitor, upd awair.Updates) {
+	if err := awairMonitor.Start(upd, time.Minute); err != nil {
+		panic(err)
+	}
 }
 
 func startWebserver(port string) {
@@ -74,41 +108,68 @@ func awairPoll(awairMonitor *awair.Monitor, upd awair.Updates) {
 	}
 }
 
-func promPush(upd awair.Updates, gatewayUrl string) {
+func promPush(awairUpdates awair.Updates, aqiUpdates chan *aqi2.AqiDataResult, gatewayUrl string) {
 	pushers := PusherBuffer{
-		pushers:    map[int]prom.Pusher{},
+		pushers:    map[string]prom.Pusher{},
 		gatewayUrl: gatewayUrl,
 	}
 
-	for d := range upd {
-		fmt.Println("Processing metrics...")
-		pusher := pushers.For(d.DeviceId)
-		pusher.Update("score", d.Score)
-		for _, s := range d.Sensors {
-			kind := strings.ToLower(s.Comp)
-			if !pusher.Update(kind, s.Value) {
-				fmt.Println("Skipping '" + kind + "' measurement")
-			}
-		}
+	for {
+		select {
+		case u := <-aqiUpdates:
+			fmt.Println("Processing aqi metrics...")
+			pusher := pushers.ForAqi(u)
+			pusher.Update("aqi", u.Data.Aqi)
+			pusher.Update("co", u.Data.Iaqi.Co.V)
+			pusher.Update("humidity", u.Data.Iaqi.Humidity.V)
+			pusher.Update("no2", u.Data.Iaqi.No2.V)
+			pusher.Update("ozone", u.Data.Iaqi.Ozone.V)
+			pusher.Update("pressure", u.Data.Iaqi.Pressure.V)
+			pusher.Update("pm10", u.Data.Iaqi.Pm10.V)
+			pusher.Update("pm25", u.Data.Iaqi.Pm25.V)
+			pusher.Update("so2", u.Data.Iaqi.So2.V)
+			pusher.Update("temperature", u.Data.Iaqi.Temperature.V)
+			pusher.Update("wind", u.Data.Iaqi.Wind.V)
 
-		fmt.Println(fmt.Sprintf("%+v", d))
-		err := pusher.Push()
-		if err != nil {
-			fmt.Println(err.Error())
-			// TODO
-		} else {
-			fmt.Println("Pushed")
+			err := pusher.Push()
+			if err != nil {
+				fmt.Println(err.Error())
+				// TODO
+			} else {
+				fmt.Println("Pushed")
+			}
+
+		case d := <-awairUpdates:
+			fmt.Println("Processing awair metrics...")
+			pusher := pushers.For(d.DeviceId)
+			pusher.Update("score", d.Score)
+			for _, s := range d.Sensors {
+				kind := strings.ToLower(s.Comp)
+				if !pusher.Update(kind, s.Value) {
+					fmt.Println("Skipping '" + kind + "' measurement")
+				}
+			}
+
+			fmt.Println(fmt.Sprintf("%+v", d))
+			err := pusher.Push()
+			if err != nil {
+				fmt.Println(err.Error())
+				// TODO
+			} else {
+				fmt.Println("Pushed")
+			}
 		}
 	}
 }
 
 type PusherBuffer struct {
-	pushers    map[int]prom.Pusher
+	pushers    map[string]prom.Pusher
 	gatewayUrl string
 }
 
 func (b *PusherBuffer) For(deviceId int) *prom.Pusher {
-	if buff, found := b.pushers[deviceId]; found {
+	k := fmt.Sprintf("awair_%d", deviceId)
+	if buff, found := b.pushers[k]; found {
 		return &buff
 	}
 
@@ -125,6 +186,31 @@ func (b *PusherBuffer) For(deviceId int) *prom.Pusher {
 		gaugeNames,
 		"awair_sensor")
 
-	b.pushers[deviceId] = *p
+	b.pushers[k] = *p
+	return p
+}
+
+func (b *PusherBuffer) ForAqi(u *aqi2.AqiDataResult) *prom.Pusher {
+	k := fmt.Sprintf("aqi_%d", u.Data.City.Name)
+	if buff, found := b.pushers[k]; found {
+		return &buff
+	}
+
+	gaugeNames := []string{
+		"aqi", "co", "humidity", "no2", "ozone", "pressure", "pm10", "pm25", "wind", "temperature", "so2",
+	}
+
+	p := prom.NewPusher(
+		b.gatewayUrl,
+		"aqicn",
+		map[string]string{
+			"city": strings.ReplaceAll(u.Data.City.Name, "+", " "),
+			"lat":  fmt.Sprintf("%f", u.Data.City.Geo[0]),
+			"lng":  fmt.Sprintf("%f", u.Data.City.Geo[1]),
+		},
+		gaugeNames,
+		"aqicn")
+
+	b.pushers[k] = *p
 	return p
 }
