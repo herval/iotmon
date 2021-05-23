@@ -12,8 +12,8 @@ const (
 )
 
 // Mapping levels https://www.airnow.gov/aqi/aqi-basics/
-func AqiForLevel(level int) AirQuality {
-	if level <= 50 {
+func AqiForLevel(level float64) AirQuality {
+	if level <= 50.0 {
 		return Good
 	} else if level >= 51 && level <= 100 {
 		return Moderate

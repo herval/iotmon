@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 )
 
@@ -39,6 +39,7 @@ func sendRequest(client *http.Client, bearerToken string, req *http.Request, v i
 	defer res.Body.Close()
 
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusBadRequest {
+		fmt.Println("Error! " + res.Status)
 		//var errRes ErrorResponse
 		if errRes != nil {
 			if err = json.NewDecoder(res.Body).Decode(&errRes); err == nil {
@@ -49,11 +50,10 @@ func sendRequest(client *http.Client, bearerToken string, req *http.Request, v i
 		return fmt.Errorf("unknown error, status code: %d", res.StatusCode)
 	}
 
-	b, err := io.ReadAll(res.Body)
+	b, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return fmt.Errorf("can't read body: %v", err)
 	}
-
 	//fmt.Println(string(b))
 
 	fullResponse := v

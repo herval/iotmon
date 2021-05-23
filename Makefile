@@ -1,4 +1,7 @@
 
+build:
+	docker build . -t iot:latest
+
 logs:
 	flyctl logs
 

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	aqi2 "github.com/herval/iotcollector/pkg/aqi"
 	"github.com/herval/iotcollector/pkg/awair"
+	"github.com/herval/iotcollector/pkg/coinmarketcap"
 	"github.com/herval/iotcollector/pkg/prom"
 	_ "github.com/joho/godotenv/autoload"
 	"os"
@@ -17,6 +18,14 @@ func main() {
 
 	awairUpdates := make(chan *awair.RawDataPoints)
 	aqiUpdates := make(chan *aqi2.AqiDataResult)
+	cryptoUpdates := make(chan *coinmarketcap.QuoteData)
+
+	if key := os.Getenv("COINMARKETCAP_API_KEY"); key != "" {
+		coins := strings.Split(os.Getenv("COINMARKETCAP_COINS"), ",")
+		cli := coinmarketcap.NewClient(key)
+
+		go cryptoPoll(cli, coins, cryptoUpdates)
+	}
 
 	if aqi := os.Getenv("AQICN_API_KEY"); aqi != "" {
 		aqiClient := aqi2.NewClient(aqi)
@@ -53,10 +62,26 @@ func main() {
 	}
 
 	if promUrl := os.Getenv("PROMETHEUS_URL"); promUrl != "" {
-		go promPush(awairUpdates, aqiUpdates, promUrl)
+		go promPush(awairUpdates, aqiUpdates, cryptoUpdates, promUrl)
 	}
 
 	select {}
+}
+
+func cryptoPoll(client *coinmarketcap.Client, symbols []string, upd chan *coinmarketcap.QuoteData) {
+	for {
+		data, err := client.Latest(context.Background(), symbols)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+
+		//fmt.Println(symbols)
+		for _, d := range data {
+			upd <- &d
+		}
+
+		time.Sleep(time.Hour)
+	}
 }
 
 func aqiPoll(client *aqi2.AqiCnClient, locations string, upd chan *aqi2.AqiDataResult) {
@@ -108,7 +133,7 @@ func awairPoll(awairMonitor *awair.Monitor, upd awair.Updates) {
 	}
 }
 
-func promPush(awairUpdates awair.Updates, aqiUpdates chan *aqi2.AqiDataResult, gatewayUrl string) {
+func promPush(awairUpdates awair.Updates, aqiUpdates chan *aqi2.AqiDataResult, cryptoUpdates chan *coinmarketcap.QuoteData, gatewayUrl string) {
 	pushers := PusherBuffer{
 		pushers:    map[string]prom.Pusher{},
 		gatewayUrl: gatewayUrl,
@@ -116,6 +141,21 @@ func promPush(awairUpdates awair.Updates, aqiUpdates chan *aqi2.AqiDataResult, g
 
 	for {
 		select {
+		case c := <-cryptoUpdates:
+			fmt.Println("Processing coinz....")
+			pusher := pushers.ForCrypto(c.Symbol)
+			pusher.Update("cmc_rank", float64(c.CmcRank))
+			pusher.Update("price_usd", c.Quote["USD"].Price)
+			pusher.Update("market_cap_usd", c.Quote["USD"].MarketCap)
+
+			err := pusher.Push()
+			if err != nil {
+				fmt.Println(err.Error())
+				// TODO
+			} else {
+				fmt.Println("Pushed")
+			}
+
 		case u := <-aqiUpdates:
 			fmt.Println("Processing aqi metrics...")
 			pusher := pushers.ForAqi(u)
@@ -150,7 +190,7 @@ func promPush(awairUpdates awair.Updates, aqiUpdates chan *aqi2.AqiDataResult, g
 				}
 			}
 
-			fmt.Println(fmt.Sprintf("%+v", d))
+			//fmt.Println(fmt.Sprintf("%+v", d))
 			err := pusher.Push()
 			if err != nil {
 				fmt.Println(err.Error())
@@ -210,6 +250,29 @@ func (b *PusherBuffer) ForAqi(u *aqi2.AqiDataResult) *prom.Pusher {
 		},
 		gaugeNames,
 		"aqicn")
+
+	b.pushers[k] = *p
+	return p
+}
+
+func (b *PusherBuffer) ForCrypto(symbol string) *prom.Pusher {
+	k := fmt.Sprintf("crypto_%d", symbol)
+	if buff, found := b.pushers[k]; found {
+		return &buff
+	}
+
+	gaugeNames := []string{
+		"price_usd", "market_cap_usd", "cmc_rank",
+	}
+
+	p := prom.NewPusher(
+		b.gatewayUrl,
+		"crypto",
+		map[string]string{
+			"coin": symbol,
+		},
+		gaugeNames,
+		"coinmarketcap")
 
 	b.pushers[k] = *p
 	return p
